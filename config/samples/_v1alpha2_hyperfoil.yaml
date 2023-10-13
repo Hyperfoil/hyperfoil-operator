@@ -3,4 +3,4 @@ kind: Hyperfoil
 metadata:
   name: hyperfoil
 spec:
-  version: latest
+  version: 0.24.2

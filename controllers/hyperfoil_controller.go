@@ -308,7 +308,7 @@ func controllerPod(cr *hyperfoilv1alpha2.Hyperfoil) *corev1.Pod {
 		"role": "controller",
 	}
 	imagePullPolicy := corev1.PullIfNotPresent
-	version := "latest"
+	version := "0.24.2" // see https://github.com/Hyperfoil/hyperfoil-operator/issues/18
 	if cr.Spec.Version != "" {
 		version = cr.Spec.Version
 		imagePullPolicy = corev1.PullAlways
