@@ -1,5 +1,5 @@
 /*
-Copyright 2021.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package controller
 
 import (
 	"context"
@@ -24,7 +24,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,6 +38,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	hyperfoilv1alpha2 "github.com/Hyperfoil/hyperfoil-operator/api/v1alpha2"
@@ -47,14 +47,14 @@ import (
 // HyperfoilReconciler reconciles a Hyperfoil object
 type HyperfoilReconciler struct {
 	client.Client
-	Log             logr.Logger
-	Scheme          *runtime.Scheme
+	Scheme *runtime.Scheme
+	//imported from go/v3 schema code
 	RoutesAvailable bool
 }
 
 var routeHost = "load.me"
 
-//+kubebuilder:rbac:groups=hyperfoil.io,resources=hyperfoils,verbs="*"
+//+kubebuilder:rbac:groups=hyperfoil.io,resources=hyperfoils,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=hyperfoil.io,resources=hyperfoils/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=hyperfoil.io,resources=hyperfoils/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=pods;pods/finalizer;pods/log;pods/status;services;configmaps;serviceaccounts;secrets;persistentvolumeclaims,verbs="*"
@@ -65,11 +65,16 @@ var routeHost = "load.me"
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
+// TODO(user): Modify the Reconcile function to compare the state specified by
+// the Hyperfoil object against the actual cluster state, and then
+// perform operations to make the cluster state reflect the state specified by
+// the user.
+//
+// For more details, check Reconcile and its Result here:
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.16.3/pkg/reconcile
 func (r *HyperfoilReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := r.Log.WithValues("hyperfoil", req.NamespacedName)
-
-	logger.Info("Reconciling Hyperfoil")
-
+	_ = log.FromContext(ctx)
+	log.Log.Info("Reconciling Hyperfoil")
 	// Fetch the Hyperfoil instance
 	instance := &hyperfoilv1alpha2.Hyperfoil{}
 	if err := r.Get(ctx, req.NamespacedName, instance); err != nil {
@@ -88,7 +93,7 @@ func (r *HyperfoilReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		instance.Status.LastUpdate = metav1.Now()
 	}
 
-	nocompare := func(interface{}, interface{}, logr.Logger) bool {
+	nocompare := func(interface{}, interface{}) bool {
 		return true
 	}
 	nocheck := func(interface{}) (bool, string, string) {
@@ -96,29 +101,29 @@ func (r *HyperfoilReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	controllerRole := controllerRole(instance)
-	if err := ensureSame(r, ctx, instance, logger, controllerRole, "Role",
+	if err := ensureSame(r, ctx, instance, controllerRole, "Role",
 		&rbacv1.Role{}, nocompare, nocheck); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	controllerServiceAccount := controllerServiceAccount(instance)
-	if err := ensureSame(r, ctx, instance, logger, controllerServiceAccount, "ServiceAccount",
+	if err := ensureSame(r, ctx, instance, controllerServiceAccount, "ServiceAccount",
 		&corev1.ServiceAccount{}, nocompare, nocheck); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	controllerRoleBinding := controllerRoleBinding(instance)
-	if err := ensureSame(r, ctx, instance, logger, controllerRoleBinding, "RoleBinding",
+	if err := ensureSame(r, ctx, instance, controllerRoleBinding, "RoleBinding",
 		&rbacv1.RoleBinding{}, nocompare, nocheck); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	if r.RoutesAvailable {
-		controllerRoute, err := controllerRoute(r, ctx, instance, logger)
+		controllerRoute, err := controllerRoute(r, ctx, instance)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		if err := ensureSame(r, ctx, instance, logger, controllerRoute, "Route",
+		if err := ensureSame(r, ctx, instance, controllerRoute, "Route",
 			&routev1.Route{}, compareControllerRoute, checkControllerRoute); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -151,33 +156,33 @@ func (r *HyperfoilReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 					corev1.ReadWriteOnce,
 				},
 				VolumeName: instance.Spec.PersistentVolumeClaim,
-				Resources: corev1.ResourceRequirements{
+				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
 						"storage": storage,
 					},
 				},
 			},
 		}
-		if err := ensureSame(r, ctx, instance, logger, &pvc, "PersistentVolumeClaim",
+		if err := ensureSame(r, ctx, instance, &pvc, "PersistentVolumeClaim",
 			&corev1.PersistentVolumeClaim{}, nocompare, nocheck); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
 
 	controllerPod := controllerPod(instance)
-	if err := ensureSame(r, ctx, instance, logger, controllerPod, "Pod",
+	if err := ensureSame(r, ctx, instance, controllerPod, "Pod",
 		&corev1.Pod{}, compareControllerPod, checkControllerPod); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	controllerService := controllerService(instance, r.RoutesAvailable)
-	if err := ensureSame(r, ctx, instance, logger, controllerService, "Service",
+	if err := ensureSame(r, ctx, instance, controllerService, "Service",
 		&corev1.Service{}, compareControllerService, nocheck); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	controllerClusterService := controllerClusterService(instance)
-	if err := ensureSame(r, ctx, instance, logger, controllerClusterService, "Service",
+	if err := ensureSame(r, ctx, instance, controllerClusterService, "Service",
 		&corev1.Service{}, nocompare, nocheck); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -206,9 +211,9 @@ type resource interface {
 	runtime.Object
 }
 
-func ensureSame(r *HyperfoilReconciler, ctx context.Context, instance *hyperfoilv1alpha2.Hyperfoil, logger logr.Logger,
+func ensureSame(r *HyperfoilReconciler, ctx context.Context, instance *hyperfoilv1alpha2.Hyperfoil,
 	object resource, resourceType string, out client.Object,
-	compare func(interface{}, interface{}, logr.Logger) bool,
+	compare func(interface{}, interface{}) bool,
 	check func(interface{}) (bool, string, string)) error {
 	// Set Hyperfoil instance as the owner and controller
 	if err := controllerutil.SetControllerReference(instance, object, r.Scheme); err != nil {
@@ -218,11 +223,11 @@ func ensureSame(r *HyperfoilReconciler, ctx context.Context, instance *hyperfoil
 	// Check if this resource already exists
 	err := r.Get(ctx, types.NamespacedName{Name: object.GetName(), Namespace: object.GetNamespace()}, out)
 	if err != nil && k8sErrors.IsNotFound(err) {
-		logger.Info("Creating a new "+resourceType, resourceType+".Namespace", object.GetNamespace(), resourceType+".Name", object.GetName())
+		log.Log.Info("Creating a new "+resourceType, resourceType+".Namespace", object.GetNamespace(), resourceType+".Name", object.GetName())
 		err = r.Create(ctx, object)
 		if err != nil {
 			bytes, _ := json.MarshalIndent(object, "", "  ")
-			logger.Info("Failed object: " + string(bytes))
+			log.Log.Info("Failed object: " + string(bytes))
 			updateStatus(r, ctx, instance, "Error", "Cannot create "+resourceType+" "+object.GetName())
 			return err
 		}
@@ -230,19 +235,19 @@ func ensureSame(r *HyperfoilReconciler, ctx context.Context, instance *hyperfoil
 	} else if err != nil {
 		updateStatus(r, ctx, instance, "Error", "Cannot find "+resourceType+" "+object.GetName())
 		return err
-	} else if compare(object, out, logger) {
-		logger.Info(resourceType + " " + object.GetName() + " already exists and matches.")
+	} else if compare(object, out) {
+		log.Log.Info(resourceType + " " + object.GetName() + " already exists and matches.")
 		if ok, status, reason := check(out); !ok {
 			setStatus(instance, status, resourceType+" "+object.GetName()+" "+reason)
 		}
 	} else {
-		logger.Info(resourceType + " " + object.GetName() + " already exists but does not match. Deleting existing object.")
+		log.Log.Info(resourceType + " " + object.GetName() + " already exists but does not match. Deleting existing object.")
 		if err = r.Delete(ctx, out); err != nil {
-			logger.Error(err, "Cannot delete "+resourceType+" "+object.GetName())
+			log.Log.Error(err, "Cannot delete "+resourceType+" "+object.GetName())
 			updateStatus(r, ctx, instance, "Error", "Cannot delete "+resourceType+" "+object.GetName())
 			return err
 		}
-		logger.Info("Creating a new " + resourceType)
+		log.Log.Info("Creating a new " + resourceType)
 		if err = r.Create(ctx, object); err != nil {
 			updateStatus(r, ctx, instance, "Error", "Cannot create "+resourceType+" "+object.GetName())
 			return err
@@ -539,11 +544,11 @@ func addProjectedConfigMapsVolume(volumes []corev1.Volume, name string, configMa
 	})
 }
 
-func compareControllerPod(i1 interface{}, i2 interface{}, logger logr.Logger) bool {
+func compareControllerPod(i1 interface{}, i2 interface{}) bool {
 	p1, ok1 := i1.(*corev1.Pod)
 	p2, ok2 := i2.(*corev1.Pod)
 	if !ok1 || !ok2 {
-		logger.Info("Cannot cast to Pods: " + fmt.Sprintf("%v | %v", i1, i2))
+		log.Log.Info("Cannot cast to Pods: " + fmt.Sprintf("%v | %v", i1, i2))
 		return false
 	}
 
@@ -553,7 +558,7 @@ func compareControllerPod(i1 interface{}, i2 interface{}, logger logr.Logger) bo
 	}
 
 	diff := cmp.Diff(p1.Spec, p2.Spec)
-	logger.Info("Pod " + p1.GetName() + " diff (-want,+got):\n" + diff)
+	log.Log.Info("Pod " + p1.GetName() + " diff (-want,+got):\n" + diff)
 	return false
 }
 
@@ -616,11 +621,11 @@ func controllerService(cr *hyperfoilv1alpha2.Hyperfoil, defaultClusterIP bool) *
 	}
 }
 
-func compareControllerService(i1 interface{}, i2 interface{}, logger logr.Logger) bool {
+func compareControllerService(i1 interface{}, i2 interface{}) bool {
 	s1, ok1 := i1.(*corev1.Service)
 	s2, ok2 := i2.(*corev1.Service)
 	if !ok1 || !ok2 {
-		logger.Info("Cannot cast to Services: " + fmt.Sprintf("%v | %v", i1, i2))
+		log.Log.Info("Cannot cast to Services: " + fmt.Sprintf("%v | %v", i1, i2))
 		return false
 	}
 
@@ -631,7 +636,7 @@ func compareControllerService(i1 interface{}, i2 interface{}, logger logr.Logger
 	}
 
 	diff := cmp.Diff(s1.Spec, s2.Spec)
-	logger.Info("Service " + s1.GetName() + " diff (-want,+got):\n" + diff)
+	log.Log.Info("Service " + s1.GetName() + " diff (-want,+got):\n" + diff)
 	return false
 }
 
@@ -661,7 +666,7 @@ func controllerClusterService(cr *hyperfoilv1alpha2.Hyperfoil) *corev1.Service {
 	}
 }
 
-func controllerRoute(r *HyperfoilReconciler, ctx context.Context, cr *hyperfoilv1alpha2.Hyperfoil, logger logr.Logger) (*routev1.Route, error) {
+func controllerRoute(r *HyperfoilReconciler, ctx context.Context, cr *hyperfoilv1alpha2.Hyperfoil) (*routev1.Route, error) {
 	subdomain := ""
 	if cr.Spec.Route.Host == "" {
 		subdomain = cr.Name
@@ -669,7 +674,7 @@ func controllerRoute(r *HyperfoilReconciler, ctx context.Context, cr *hyperfoilv
 			subdomain += "-" + cr.Namespace
 		}
 	}
-	tls, err := tls(r, ctx, cr, logger)
+	tls, err := tls(r, ctx, cr)
 	if err != nil {
 		return nil, err
 	}
@@ -694,7 +699,7 @@ func controllerRoute(r *HyperfoilReconciler, ctx context.Context, cr *hyperfoilv
 	}, nil
 }
 
-func tls(r *HyperfoilReconciler, ctx context.Context, cr *hyperfoilv1alpha2.Hyperfoil, logger logr.Logger) (*routev1.TLSConfig, error) {
+func tls(r *HyperfoilReconciler, ctx context.Context, cr *hyperfoilv1alpha2.Hyperfoil) (*routev1.TLSConfig, error) {
 	switch cr.Spec.Route.Type {
 	case "http":
 		return nil, nil
@@ -724,7 +729,7 @@ func tls(r *HyperfoilReconciler, ctx context.Context, cr *hyperfoilv1alpha2.Hype
 	case "reencrypt":
 		termination = routev1.TLSTerminationReencrypt
 	default:
-		logger.Info("Invalid route type: " + cr.Spec.Route.Type)
+		log.Log.Info("Invalid route type: " + cr.Spec.Route.Type)
 		return nil, errors.New("Invalid route type: " + cr.Spec.Route.Type)
 	}
 	return &routev1.TLSConfig{
@@ -736,11 +741,11 @@ func tls(r *HyperfoilReconciler, ctx context.Context, cr *hyperfoilv1alpha2.Hype
 	}, nil
 }
 
-func compareControllerRoute(i1 interface{}, i2 interface{}, logger logr.Logger) bool {
+func compareControllerRoute(i1 interface{}, i2 interface{}) bool {
 	r1, ok1 := i1.(*routev1.Route)
 	r2, ok2 := i2.(*routev1.Route)
 	if !ok1 || !ok2 {
-		logger.Info("Cannot cast to Routes: " + fmt.Sprintf("%v | %v", i1, i2))
+		log.Log.Info("Cannot cast to Routes: " + fmt.Sprintf("%v | %v", i1, i2))
 		return false
 	}
 
@@ -750,7 +755,7 @@ func compareControllerRoute(i1 interface{}, i2 interface{}, logger logr.Logger) 
 	}
 
 	diff := cmp.Diff(r1.Spec, r2.Spec)
-	logger.Info("Route " + r1.GetName() + " diff (-want, +got):\n" + diff)
+	log.Log.Info("Route " + r1.GetName() + " diff (-want, +got):\n" + diff)
 
 	return false
 }
