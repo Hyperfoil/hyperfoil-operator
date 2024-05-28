@@ -1,6 +1,12 @@
 apiVersion: hyperfoil.io/v1alpha2
 kind: Hyperfoil
 metadata:
-  name: hyperfoil
+  labels:
+    app.kubernetes.io/name: hyperfoil
+    app.kubernetes.io/instance: hyperfoil-sample
+    app.kubernetes.io/part-of: hyperfoil-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: hyperfoil-operator
+  name: hyperfoil-sample
 spec:
   version: latest

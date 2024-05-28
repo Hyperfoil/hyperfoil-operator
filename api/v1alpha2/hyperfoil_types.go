@@ -1,5 +1,5 @@
 /*
-Copyright 2021.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// HyperfoilSpec Configures Hyperfoil Controller and related resources.
+// HyperfoilSpec defines the desired state of Hyperfoil.It Configures Hyperfoil Controller and related resources.
 type HyperfoilSpec struct {
 	// Controller image. If 'version' is defined, too, the tag is replaced (or appended). Defaults to 'quay.io/hyperfoil/hyperfoil'
 	Image string `json:"image,omitempty"`
