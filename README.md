@@ -1,5 +1,5 @@
 # hyperfoil-operator
-This operator installs and configures Hyperfoil Controller.
+This operator installs and configures Hyperfoil Controller. See example resource in [config/samples/_v1alpha2_hyperfoil.yaml](config/samples/_v1alpha2_hyperfoil.yaml).
 
 ## Description
 This Operator installs, configures and manages Hyperfoil Controller instances on a Kubernetes/Openshift Based environment
@@ -13,10 +13,19 @@ This Operator installs, configures and manages Hyperfoil Controller instances on
 - Access to a Kubernetes v1.11.3+ cluster.
 
 ### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+**Building the operator and push your image to the location specified by `CONTAINER_REPO_OVERRIDE`:**
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/hyperfoil-operator:tag
+# Define your container repository.
+export CONTAINER_REPO_OVERRIDE="quay.io/hyperfoil" # default: quay.io/hyperfoil
+# This creates and pushes the image (${CONTAINER_REPO_OVERRIDE}/hyperfoil-operator:0.15.0)
+# Build is executed in a builder container.
+make docker-build docker-push
+# Creates image (${CONTAINER_REPO_OVERRIDE}/hyperfoil-operator-bundle:0.15.0) with ClusterServiceVersion and other resources
+make bundle-build
+podman push ${CONTAINER_REPO_OVERRIDE}/hyperfoil-operator-bundle:0.15.0
+# Creates CatalogSource and Subscription in the cluster
+operator-sdk run bundle ${CONTAINER_REPO_OVERRIDE}/hyperfoil-operator-bundle:0.15.0
 ```
 
 **NOTE:** This image ought to be published in the personal registry you specified. 
@@ -66,49 +75,6 @@ make uninstall
 make undeploy
 ```
 
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2024.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-# GO/V3 Docs
-# Hyperfoil Operator
-
-This operator installs and configures Hyperfoil Controller. See example resource in [config/samples/_v1alpha2_hyperfoil.yaml](config/samples/_v1alpha2_hyperfoil.yaml).
-
-## Building the operator
-
-```bash
-# Define your container repository.
-export CONTAINER_REPO_OVERRIDE="quay.io/hyperfoil" # default: quay.io/hyperfoil
-# This creates and pushes the image (${CONTAINER_REPO_OVERRIDE}/hyperfoil-operator:0.15.0)
-# Build is executed in a builder container.
-make docker-build docker-push
-# Creates image (${CONTAINER_REPO_OVERRIDE}/hyperfoil-operator-bundle:0.15.0) with ClusterServiceVersion and other resources
-make bundle-build
-podman push ${CONTAINER_REPO_OVERRIDE}/hyperfoil-operator-bundle:0.15.0
-# Creates CatalogSource and Subscription in the cluster
-operator-sdk run bundle ${CONTAINER_REPO_OVERRIDE}/hyperfoil-operator-bundle:0.15.0
-```  
-
 ## Deploy the operator and run Hyperfoil in minikube
         
 First start by [installing minikube](https://minikube.sigs.k8s.io/docs/start/). Start the cluster with `minikube start`. (*Suggestion:* use `minikube dashboard` to monitor the cluster)
@@ -130,3 +96,30 @@ From here on, follow the [Hyperfoil quickstart guide](https://hyperfoil.io/quick
 Undeploy samples from cluster `make undeploy-samples` (*Note:* this does not require the operator to be running)
 
 Stop the minikube cluster with `minikube stop`. Optionally delete the cluster with `minikube delete --all`
+
+## Contributing
+Contributions to `Hyperfoil` are managed on [GitHub.com](https://github.com/Hyperfoil/hyperfoil-operator/)
+
+* [Raise an issue](https://github.com/Hyperfoil/hyperfoil-operator/issues)
+* [Feature request](https://github.com/Hyperfoil/hyperfoil-operator/issues)
+* [Code submission](https://github.com/Hyperfoil/hyperfoil-operator/pulls)
+
+**NOTE:** Run `make help` for more information on all potential `make` targets
+
+More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+
+## License
+
+Copyright 2024.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
