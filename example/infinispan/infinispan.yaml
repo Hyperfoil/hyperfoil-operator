@@ -1,0 +1,19 @@
+apiVersion: infinispan.org/v1
+kind: Infinispan
+metadata:
+  name: example-infinispan
+spec:
+  replicas: 1
+  security:
+    endpointAuthentication: true
+    endpointEncryption:
+      type: None
+---
+apiVersion: infinispan.org/v2alpha1
+kind: Cache
+metadata:
+  name: mycache
+spec:
+  clusterName: example-infinispan
+  name: mycache
+  templateName: org.infinispan.DIST_SYNC
