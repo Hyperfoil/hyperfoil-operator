@@ -143,7 +143,8 @@ spec:
   - email: spederse@redhat.com
     name: Ståle W. Pedersen
   maturity: alpha
+  minKubeVersion: 1.25.0
   provider:
     name: Red Hat, Inc.
-  replaces: hyperfoil-operator.v0.24.2
+  replaces: hyperfoil-operator.v0.26.0
   version: 0.0.0
