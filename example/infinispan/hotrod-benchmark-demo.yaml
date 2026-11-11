@@ -1,0 +1,55 @@
+name: hotrod-benchmark-demo
+hotrod:
+  # Replace <USERNAME>:<PASSWORD> with your Data Grid credentials.
+  # Replace <SERVICE_HOSTNAME>:<PORT> with the host name and port for Data Grid.
+  - uri: hotrod://<USERNAME>:<PASSWORD>@example-infinispan.default.svc.cluster.local:11222
+    caches:
+      # Replace <CACHE-NAME> with the name of your Data Grid cache.
+      - mycache
+agents:
+  agent-1:
+  agent-2:
+phases:
+  - rampupPut:
+      increasingRate:
+        duration: 10s
+        initialUsersPerSec: 10
+        targetUsersPerSec: 20
+        maxSessions: 300
+        scenario: &put
+          - putData:
+              - randomInt: cacheKey <- 1 .. 4000
+              - randomUUID: cacheValue
+              - hotrodRequest:
+                  # Replace <CACHE-NAME> with the name of your Data Grid cache.
+                  put: mycache
+                  key: key-${cacheKey}
+                  value: value-${cacheValue}
+  - rampupGet:
+      increasingRate:
+        duration: 10s
+        initialUsersPerSec: 10
+        targetUsersPerSec: 20
+        maxSessions: 300
+        scenario: &get
+          - getData:
+              - randomInt: cacheKey <- 1 .. 4000
+              - randomUUID: cacheValue
+              - hotrodRequest:
+                  # Replace <CACHE-NAME> with the name of your Data Grid cache.
+                  get: mycache
+                  key: key-${cacheKey}
+  - doPut:
+      constantRate:
+        startAfter: rampupPut
+        duration: 1m
+        usersPerSec: 10
+        maxSessions: 1000
+        scenario: *put
+  - doGet:
+      constantRate:
+        startAfter: rampupGet
+        duration: 1m
+        usersPerSec: 10
+        maxSessions: 1000
+        scenario: *get
