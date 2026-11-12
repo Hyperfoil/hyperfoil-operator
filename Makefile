@@ -64,6 +64,9 @@ IMG ?= $(CONTAINER_REPO_OVERRIDE)/hyperfoil-operator:$(VERSION)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.33.0
 
+# OpenShift version compatibility for Red Hat certification
+OPENSHIFT_VERSIONS ?= v4.12
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -280,7 +283,13 @@ endif
 bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	# 1. Generate the upstream vanilla bundle
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
+	# 2. Automatically inject the version into bundle/metadata/annotations.yaml
+	yq e -i '.annotations."com.redhat.openshift.versions" = "$(OPENSHIFT_VERSIONS)"' bundle/metadata/annotations.yaml
+	# 3. Append the required OpenShift label to the freshly generated bundle.Dockerfile
+	echo 'LABEL com.redhat.openshift.versions="$(OPENSHIFT_VERSIONS)"' >> bundle.Dockerfile
+	# 4. Validate the resulting bundle locally
 	$(OPERATOR_SDK) bundle validate ./bundle
 
 .PHONY: bundle-build
