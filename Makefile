@@ -64,6 +64,11 @@ IMG ?= $(CONTAINER_REPO_OVERRIDE)/hyperfoil-operator:$(VERSION)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.33.0
 
+# OpenShift version compatibility for Red Hat certification
+# The Operator bundle must indicate the minor versions of OpenShift that the target product supports by setting the com.redhat.openshift.versions annotation.
+# Annotation syntax: a) Restrict to a single RHOCP version: "=v4.17" b) Restrict to a version range: "v4.16-v4.17" c) Open-ended version range: "v4.16"
+OPENSHIFT_VERSIONS ?= v4.12
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -278,9 +283,21 @@ endif
 
 .PHONY: bundle
 bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
+	@if ! command -v yq >/dev/null 2>&1; then \
+		echo "ERROR: 'yq' is required but could not be found in your PATH."; \
+		echo "Please install yq (e.g., 'brew install yq', 'sudo apt-get install yq', or from GitHub) and re-run make bundle."; \
+		exit 1; \
+	fi
+
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	# 1. Generate the upstream vanilla bundle
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
+	# 2. Automatically inject the version into bundle/metadata/annotations.yaml
+	yq e -i '.annotations."com.redhat.openshift.versions" = "$(OPENSHIFT_VERSIONS)"' bundle/metadata/annotations.yaml
+	# 3. Append the required OpenShift label to the freshly generated bundle.Dockerfile
+	echo 'LABEL com.redhat.openshift.versions="$(OPENSHIFT_VERSIONS)"' >> bundle.Dockerfile
+	# 4. Validate the resulting bundle locally
 	$(OPERATOR_SDK) bundle validate ./bundle
 
 .PHONY: bundle-build
